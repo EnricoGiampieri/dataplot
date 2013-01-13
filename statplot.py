@@ -17,6 +17,36 @@ cm_bkr=colors.LinearSegmentedColormap.from_list('mycm',[(0,'b'),(0.5,'k'),(1,'r'
 
 # <codecell>
 
+def multiget(dictionary,keylist,default=None):
+    """
+    returns the value in the dict from multiple, equivalent keys (that shouldn't be duplicated)
+
+    >>> a = dict(a = 1, b = 2)
+    >>> multiget(a,['a'],0)
+    1
+    >>> multiget(a,['c'],0)
+    0
+    >>> multiget(a,['a','b'],0)
+    Traceback (most recent call last):
+    ...
+    AttributeError: double definition for keylist: a, b
+    """
+    res = None
+    for key in keylist:
+        if key in dictionary:
+            if res is None:
+                res = dictionary[key]
+            else:
+                raise AttributeError('double definition for keylist: '+", ".join(keylist))
+    res = default if res is None else res
+    return res
+
+# <markdowncell>
+
+# #Violin plot and boxplot
+
+# <codecell>
+
 
 from scipy.stats import gaussian_kde,sem
 import pylab as plt
@@ -155,44 +185,11 @@ if __name__=='__main__':
 
 # <codecell>
 
-def _repatch(rect,cmin,cmax,cbot=0.,ctop=1.,cmap=cm.jet,n=10):
-    ax = rect.axes
-    ax.set_autoscale_on(False)
-    base = np.repeat(np.linspace(cmin,cmax,n).reshape(1,-1),2,axis=0)
-    rect.remove()
-    x,y,w,h = rect.get_bbox().bounds
-    im = ax.imshow(base,extent=(x,x+w,y,y+h), cmap = cmap, vmin = cbot, vmax= ctop, aspect='auto')
-    ax.set_autoscale_on(True)
-    return im
-
-def repatch_set(rects,cmap=cm.jet):
-    images = []
-    cmin = min( rect.get_bbox().bounds[0] for rect in rects )
-    cmax = max( rect.get_bbox().bounds[0]+rect.get_bbox().bounds[2] for rect in rects )
-    for rect in rects:
-        x,y,w,h = rect.get_bbox().bounds
-        images.append(_repatch(rect,x,x+w,cmin,cmax,cmap))
-    return images
-
-if __name__=='__main__':
-    fig, ax = subplots(1,figsize=(4,4))
-    rects = ax.bar(range(11),range(1,6)+[6]+range(1,6)[::-1],[1.]*11)
-    imgs = repatch_set(rects,cm.jet)
-
-    fig, ax = subplots(1,2,figsize=(8,4))
-    img = randn(30,30)
-    cmap = cm.winter
-    ax[0].imshow(img,interpolation='nearest',cmap=cmap)
-    _,_,rects = hist(img.flat)
-    imgs = repatch_set(rects,cmap)
-
-# <codecell>
-
 import pylab as plt
 import numpy as np
 from collections import Counter
 
-def esamina(data,**kwargs):
+def explore(data,**kwargs):
     ax = plt.gca()
     res=Counter(data)
     key=sorted(res.keys())
@@ -214,11 +211,15 @@ def esamina(data,**kwargs):
   
 
 if __name__=='__main__':
-    esamina([1,1,1,2,2,3,5,5,5,5,5]+[10]*20)
+    explore([1,1,1,2,2,3,5,5,5,5,5]+[10]*20)
     figure()
     esamina('pippo')
     #figure()
     #esamina(['male','female','male','female','male'], facecolor='#777777', ecolor='black')
+
+# <markdowncell>
+
+# #Plotting lambdas function
 
 # <codecell>
 
@@ -265,10 +266,6 @@ if __name__=='__main__':
 
 # <codecell>
 
-np.linspace?
-
-# <codecell>
-
 #plot a single parameter function
 def plotfunc(func, step = 100, *args,**kwargs):
     ax = kwargs.pop('ax',plt.gca())
@@ -289,29 +286,102 @@ if __name__=='__main__':
 
 # <codecell>
 
-def multiget(dictionary,keylist,default=None):
-    """
-    returns the value in the dict from multiple, equivalent keys (that shouldn't be duplicated)
+import inspect
+def plot_func_1to1(function,domain=None,N=100.,*args,**kwargs):
+    if domain is None:
+        domain = linspace(-1.,1.,num=N+1)
+    y = function(domain)
+    gca().plot(domain, y, *args,**kwargs)
 
-    >>> a = dict(a = 1, b = 2)
-    >>> multiget(a,['a'],0)
-    1
-    >>> multiget(a,['c'],0)
-    0
-    >>> multiget(a,['a','b'],0)
-    Traceback (most recent call last):
-    ...
-    AttributeError: double definition for keylist: a, b
+def apply_func_2(function,domain=None,N=100.):
+    if domain is None:
+        x = linspace(-1.,1.,num=N+1)
+        y = linspace(-1.,1.,num=N+1)
+        domain=meshgrid(x,y)
+    xt,yt=domain
+    dx=np.max(xt)-np.min(xt)
+    dy=np.max(yt)-np.min(yt)
+    z = function(*domain)
+    return z, dx,dy
+    
+def plot_func_2to1(function,z,domain, dx,dy,N=100.,*args,**kwargs):
+    z,dx,dy = apply_func_2(function,domain=domain,N=N)
+    gca().imshow( z, *args,**kwargs)
+    gca().yaxis.set_major_formatter(FuncFormatter(lambda x,pos: dx*x/N-1))
+    gca().xaxis.set_major_formatter(FuncFormatter(lambda y,pos: dy*y/N-1))
+
+    
+def plot_func_2to2(function,z,domain,dx,dy,N=100.,*args,**kwargs):
+    z,dx,dy = apply_func_2(function,domain=domain,N=N)
+    U,V = z
+    gca().quiver( U,V, *args,**kwargs)
+    gca().yaxis.set_major_formatter(FuncFormatter(lambda x,pos: dx*x/N-1))
+    gca().xaxis.set_major_formatter(FuncFormatter(lambda y,pos: dy*y/N-1))
+    
+def plot_lambda(function,domain=None,N=100,*args,**kwargs):
     """
-    res = None
-    for key in keylist:
-        if key in dictionary:
-            if res is None:
-                res = dictionary[key]
-            else:
-                raise AttributeError('double definition for keylist: '+", ".join(keylist))
-    res = default if res is None else res
-    return res
+    print a function over a domain. it inspect the function to infer
+    wich kind of function it is and plot by consequence
+    """
+    if len(inspect.getargspec(function).args)<=1:
+        #se parte da una dimensione e restituisce un valore ne faccio il grafico
+        plot_func_1to1(function,domain=domain,N=N,*args,**kwargs)
+    elif len(inspect.getargspec(function).args)==2:
+        #testo per vedere se restituisce una funzione a uno o due valori
+        z,dx,dy = apply_func_2(function,domain=array([[0,],[0,]]),N=N)
+        if len(z)==2:
+            z,dx,dy = apply_func_2(function,domain=domain,N=25)
+            plot_func_2to2(function,z,domain,dx,dy,N=25,*args,**kwargs)
+        else:
+            z,dx,dy = apply_func_2(function,domain=domain,N=N)
+            plot_func_2to1(function,z,domain,dx,dy,N,*args,**kwargs)
+        
+if __name__=='__main__':
+    f = lambda x: x**2-x**3
+    plot_lambda(f)
+    figure()
+    g = lambda x,y: (x**2+y**2)*cos(x)
+    plot_lambda(g)
+    figure()
+    h = lambda x,y: (x+y,x-y)
+    plot_lambda(h)
+
+# <markdowncell>
+
+# #Applying gradients to set of patches
+
+# <codecell>
+
+def _repatch(rect,cmin,cmax,cbot=0.,ctop=1.,cmap=cm.jet,n=10):
+    ax = rect.axes
+    ax.set_autoscale_on(False)
+    base = np.repeat(np.linspace(cmin,cmax,n).reshape(1,-1),2,axis=0)
+    rect.remove()
+    x,y,w,h = rect.get_bbox().bounds
+    im = ax.imshow(base,extent=(x,x+w,y,y+h), cmap = cmap, vmin = cbot, vmax= ctop, aspect='auto')
+    ax.set_autoscale_on(True)
+    return im
+
+def repatch_set(rects,cmap=cm.jet):
+    images = []
+    cmin = min( rect.get_bbox().bounds[0] for rect in rects )
+    cmax = max( rect.get_bbox().bounds[0]+rect.get_bbox().bounds[2] for rect in rects )
+    for rect in rects:
+        x,y,w,h = rect.get_bbox().bounds
+        images.append(_repatch(rect,x,x+w,cmin,cmax,cmap))
+    return images
+
+if __name__=='__main__':
+    fig, ax = subplots(1,figsize=(4,4))
+    rects = ax.bar(range(11),range(1,6)+[6]+range(1,6)[::-1],[1.]*11)
+    imgs = repatch_set(rects,cm.jet)
+
+    fig, ax = subplots(1,2,figsize=(8,4))
+    img = randn(30,30)
+    cmap = cm.winter
+    ax[0].imshow(img,interpolation='nearest',cmap=cmap)
+    _,_,rects = hist(img.flat)
+    imgs = repatch_set(rects,cmap)
 
 # <codecell>
 
@@ -448,71 +518,13 @@ if __name__=='__main__':
         ax.add_patch(rect)
     gradient_patchset(rects,direction=45);
 
-# <codecell>
-
-import inspect
-def plot_func_1to1(function,domain=None,N=100.,*args,**kwargs):
-    if domain is None:
-        domain = linspace(-1.,1.,num=N+1)
-    y = function(domain)
-    gca().plot(domain, y, *args,**kwargs)
-
-def apply_func_2(function,domain=None,N=100.):
-    if domain is None:
-        x = linspace(-1.,1.,num=N+1)
-        y = linspace(-1.,1.,num=N+1)
-        domain=meshgrid(x,y)
-    xt,yt=domain
-    dx=np.max(xt)-np.min(xt)
-    dy=np.max(yt)-np.min(yt)
-    z = function(*domain)
-    return z, dx,dy
-    
-def plot_func_2to1(function,z,domain, dx,dy,N=100.,*args,**kwargs):
-    z,dx,dy = apply_func_2(function,domain=domain,N=N)
-    gca().imshow( z, *args,**kwargs)
-    gca().yaxis.set_major_formatter(FuncFormatter(lambda x,pos: dx*x/N-1))
-    gca().xaxis.set_major_formatter(FuncFormatter(lambda y,pos: dy*y/N-1))
-
-    
-def plot_func_2to2(function,z,domain,dx,dy,N=100.,*args,**kwargs):
-    z,dx,dy = apply_func_2(function,domain=domain,N=N)
-    U,V = z
-    gca().quiver( U,V, *args,**kwargs)
-    gca().yaxis.set_major_formatter(FuncFormatter(lambda x,pos: dx*x/N-1))
-    gca().xaxis.set_major_formatter(FuncFormatter(lambda y,pos: dy*y/N-1))
-    
-def plot_lambda(function,domain=None,N=100,*args,**kwargs):
-    """
-    print a function over a domain. it inspect the function to infer
-    wich kind of function it is and plot by consequence
-    """
-    if len(inspect.getargspec(function).args)<=1:
-        #se parte da una dimensione e restituisce un valore ne faccio il grafico
-        plot_func_1to1(function,domain=domain,N=N,*args,**kwargs)
-    elif len(inspect.getargspec(function).args)==2:
-        #testo per vedere se restituisce una funzione a uno o due valori
-        z,dx,dy = apply_func_2(function,domain=array([[0,],[0,]]),N=N)
-        if len(z)==2:
-            z,dx,dy = apply_func_2(function,domain=domain,N=25)
-            plot_func_2to2(function,z,domain,dx,dy,N=25,*args,**kwargs)
-        else:
-            z,dx,dy = apply_func_2(function,domain=domain,N=N)
-            plot_func_2to1(function,z,domain,dx,dy,N,*args,**kwargs)
-        
-if __name__=='__main__':
-    f = lambda x: x**2-x**3
-    plot_lambda(f)
-    figure()
-    g = lambda x,y: (x**2+y**2)*cos(x)
-    plot_lambda(g)
-    figure()
-    h = lambda x,y: (x+y,x-y)
-    plot_lambda(h)
-
 # <markdowncell>
 
 # ----
+
+# <markdowncell>
+
+# #Mosaic plot
 
 # <codecell>
 
